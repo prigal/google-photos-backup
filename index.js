@@ -108,14 +108,18 @@ const downloadPhoto = async (page, overwrite = false) => {
     const data = await page.request.get(page.url())
     const html = await data.text()
 
-    const regex = /aria-label="Photo - ([^"]+)"/
+    // RegEx only works for English
+    const regex = /aria-label="Photo ((?:[–-]) ([^"–-]+))+"/
     const match = regex.exec(html)
 
     if (match) {
-      const dateString = match[1]
-      const date = new Date(dateString)
+      const lastMatch = match.pop()
+      console.log(`Metadata in HTML: ${lastMatch}`)
+      const date = new Date(lastMatch)
       year = date.getFullYear()
       month = date.getMonth() + 1
+    } else {
+      console.log('Could not find metadata in HTML, was language set to english?')
     }
   }
 
