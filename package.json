@@ -5,7 +5,10 @@
   "repository": "vikas5914/google-photos-backup",
   "main": "index.js",
   "type": "module",
-  "scripts": {},
+  "scripts": {
+    "start": "node index.js",
+    "setup": "node setup.js"
+  },
   "author": {
     "name": "Vikas Kapadiya",
     "email": "vikas@kapadiya.net",
