@@ -53,11 +53,20 @@ const start = async (
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   })
 
+  const cleanup = async () => {
+    await browser.close()
+    await exiftool.end()
+  }
+
   const page = await browser.newPage()
 
   await page.goto('https://photos.google.com')
 
   const latestPhoto = await getLatestPhoto(page)
+  if (!latestPhoto) {
+    console.log('Could not determine latest photo')
+    return await cleanup()
+  }
   console.log('Latest Photo:', latestPhoto)
   console.log('-------------------------------------')
 
@@ -92,8 +101,7 @@ const start = async (
     await downloadPhoto(page, photoDirectory)
     await saveProgress(photoDirectory, page.url())
   }
-  await browser.close()
-  await exiftool.end()
+  await cleanup()
 }
 
 const setup = async (sessionDirectory) => {
@@ -160,6 +168,7 @@ const downloadPhoto = async (page, downloadPath, overwrite = false) => {
   we get the active element, which is the latest photo.
 */
 const getLatestPhoto = async (page) => {
+  await sleep(500)
   await page.keyboard.press('ArrowRight')
   await sleep(500)
   return await page.evaluate(() => document.activeElement.href)
