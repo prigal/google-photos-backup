@@ -4,13 +4,9 @@ import path from 'path'
 import { moveFile } from 'move-file'
 import fsP from 'node:fs/promises'
 import { exiftool } from 'exiftool-vendored'
+import { program } from "commander"
 
 chromium.use(stealth())
-
-const userDataDir = './session'
-const downloadPath = './download'
-
-let headless = true
 
 // accept --headless=false argument to run in headful mode
 if (process.argv[2] === '--headless=false') {
@@ -19,26 +15,39 @@ if (process.argv[2] === '--headless=false') {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-const getProgress = async () => {
+const getProgress = async (downloadPath) => {
+  const lastDone = await fsP.readFile(path.join(downloadPath, '.lastdone'), 'utf-8')
+  if (lastDone === '') throw new Error("empty file")
+  return lastDone
+}
+
+const saveProgress = async (directory, url) => {
+  await fsP.writeFile(path.join(directory, '.lastdone'), url, 'utf-8')
+}
+
+const start = async (
+  headless,
+  photoDirectory,
+  sessionDirectory,
+  initialPhotoUrl
+) => {
+  let startLink
   try {
-    const lastDone = await fsP.readFile('.lastdone', 'utf-8')
-    if (lastDone === '') throw new Error('Please add the starting link in .lastdone file')
-    return lastDone
-  } catch (error) {
-    throw new Error(error)
+    startLink = await getProgress(photoDirectory)
+  } catch (e) {
+    console.log("Empty or non-existing .lastdone file")
+    if (initialPhotoUrl) {
+      console.log(`Populating from --initial-photo-url parameter: ${initialPhotoUrl}`)
+      await saveProgress(photoDirectory, initialPhotoUrl)
+      startLink = initialPhotoUrl
+    } else {
+      console.log('Please pass initial photo url using the --initial-photo-url parameter or manually populate the .lastdone file in your photo directory')
+      return
+    }
   }
-}
-
-const saveProgress = async (page) => {
-  const currentUrl = await page.url()
-  await fsP.writeFile('.lastdone', currentUrl, 'utf-8')
-}
-
-(async () => {
-  const startLink = await getProgress()
   console.log('Starting from:', new URL(startLink).href)
 
-  const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
+  const browser = await chromium.launchPersistentContext(path.resolve(sessionDirectory), {
     headless,
     acceptDownloads: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -57,10 +66,10 @@ const saveProgress = async (page) => {
   /*
     We download the first (Oldest) photo and overwrite it if it already exists. Otherwise running first time, it will skip the first photo.
   */
-  await downloadPhoto(page, true)
+  await downloadPhoto(page, photoDirectory, true)
 
   while (true) {
-    const currentUrl = await page.url()
+    const currentUrl = page.url()
 
     if (clean(currentUrl) === clean(latestPhoto)) {
       console.log('-------------------------------------')
@@ -80,14 +89,25 @@ const saveProgress = async (page) => {
       return url.host === 'photos.google.com' && url.href !== currentUrl
     })
 
-    await downloadPhoto(page)
-    await saveProgress(page)
+    await downloadPhoto(page, photoDirectory)
+    await saveProgress(photoDirectory, page.url())
   }
   await browser.close()
   await exiftool.end()
-})()
+}
 
-const downloadPhoto = async (page, overwrite = false) => {
+const setup = async (sessionDirectory) => {
+  const browser = await chromium.launchPersistentContext(path.resolve(sessionDirectory), {
+    headless: false,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  })
+  const page = await browser.newPage()
+  await page.goto('https://photos.google.com/')
+
+  console.log('Close browser once you are logged inside Google Photos')
+}
+
+const downloadPhoto = async (page, downloadPath, overwrite = false) => {
   const downloadPromise = page.waitForEvent('download')
 
   await page.keyboard.down('Shift')
@@ -142,10 +162,38 @@ const downloadPhoto = async (page, overwrite = false) => {
 const getLatestPhoto = async (page) => {
   await page.keyboard.press('ArrowRight')
   await sleep(500)
-  return await page.evaluate(() => document.activeElement.toString())
+  return await page.evaluate(() => document.activeElement.href)
 }
 
 // remove /u/0/
 const clean = (link) => {
   return link.replace(/\/u\/\d+\//, '/')
 }
+
+program
+  .name('google-photos-backup')
+  .description('Backup your google photos library using playwright')
+
+program
+  .command("start")
+  .option('--headless <value>', 'Run browser in headless mode', 'true')
+  .option('--photo-directory <value>', 'Directory to download photos to', './download')
+  .option('--session-directory <value>', 'Chrome session directory', './session')
+  .option('--initial-photo-url <value>', 'URL of your oldest photo. This parameter is only used when the .lastdone file is not available')
+  .action(options => {
+    start(
+      options.headless === "true",
+      options.photoDirectory,
+      options.sessionDirectory,
+      options.initialPhotoUrl
+    )
+  })
+
+program
+  .command('setup')
+  .option('--session-directory <value>', 'Chrome session directory', './session')
+  .action(options => {
+    setup(options.sessionDirectory)
+  })
+
+program.parse()

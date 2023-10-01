@@ -24,6 +24,7 @@
     "photo"
   ],
   "dependencies": {
+    "commander": "^11.0.0",
     "exiftool-vendored": "^22.0.0",
     "move-file": "^3.1.0",
     "pino": "^8.14.1",
