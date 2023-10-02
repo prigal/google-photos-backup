@@ -66,7 +66,16 @@ const start = async (
 
   const page = await browser.newPage()
 
-  await page.goto('https://photos.google.com')
+  const mainGooglePhotosUrl = "https://photos.google.com/"
+
+  await page.goto(mainGooglePhotosUrl)
+
+  const pageUrl = page.url()
+
+  if (pageUrl !== mainGooglePhotosUrl) {
+    console.log(`Page was redirected to ${pageUrl}, please authenticate first using the 'setup' command`)
+    return cleanup()
+  }
 
   // TODO check if on login page
 
