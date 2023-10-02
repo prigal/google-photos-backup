@@ -33,7 +33,8 @@ const start = async (
     photoDirectory,
     sessionDirectory,
     initialPhotoUrl,
-    writeScrapedExif
+    writeScrapedExif,
+    flatDirectoryStructure
   }
 ) => {
   let startLink
@@ -85,8 +86,10 @@ const start = async (
   await downloadPhoto(
     page,
     {
-      photoDirectory, overwrite: true,
-      writeScrapedExif: writeScrapedExif
+      photoDirectory,
+      overwrite: true,
+      writeScrapedExif,
+      flatDirectoryStructure
     }
   )
 
@@ -137,7 +140,8 @@ const setup = async (sessionDirectory) => {
 const downloadPhoto = async (page, {
   photoDirectory,
   overwrite = false,
-  writeScrapedExif = false
+  writeScrapedExif = false,
+  flatDirectoryStructure = false
 }) => {
   const downloadPromise = page.waitForEvent('download')
 
@@ -180,9 +184,13 @@ const downloadPhoto = async (page, {
     }
   }
 
+  const destDir = flatDirectoryStructure
+    ? path.join(photoDirectory, fileName)
+    : path.join(photoDirectory, `${year}`, `${month}`, fileName)
+
   try {
-    await moveFile(temp, `${photoDirectory}/${year}/${month}/${fileName}`, { overwrite })
-    console.log('Download Complete:', `${year}/${month}/${fileName}`)
+    await moveFile(temp, destDir, { overwrite })
+    console.log('Download Complete:', destDir)
   } catch (error) {
     const randomNumber = Math.floor(Math.random() * 1000000)
     const fileName = await download.suggestedFilename().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
@@ -219,14 +227,15 @@ program
   .option('--session-directory <value>', 'Chrome session directory', './session')
   .option('--initial-photo-url <value>', 'URL of your oldest photo. This parameter is only used when the .lastdone file is not available')
   .option('--write-scraped-exif', 'When no data metadata is available, set scraped webpage date data as metadata', false)
-  // TODO: Add option for flat directory structure
+  .option('--flat-directory-structure', 'Insteas of using a nested folder structure (year, month), download all photos to a single folder', false)
   .action(options => {
     start({
       headless: options.headless === "true",
       photoDirectory: options.photoDirectory,
       sessionDirectory: options.sessionDirectory,
       initialPhotoUrl: options.initialPhotoUrl,
-      writeScrapedExif: options.writeScrapedExif
+      writeScrapedExif: options.writeScrapedExif,
+      flatDirectoryStructure: options.flatDirectoryStructure
     })
   })
 
