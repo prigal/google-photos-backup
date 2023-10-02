@@ -164,7 +164,7 @@ const downloadPhoto = async (page, {
     const html = await data.text()
 
     // RegEx only works for English
-    const regex = /aria-label="Photo ((?:[–-]) ([^"–-]+))+"/
+    const regex = /aria-label="(?:Photo|Video) ((?:[–-]) ([^"–-]+))+"/
     const match = regex.exec(html)
 
     if (match) {
