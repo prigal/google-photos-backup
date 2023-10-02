@@ -3,8 +3,9 @@ import stealth from 'puppeteer-extra-plugin-stealth'
 import path from 'path'
 import { moveFile } from 'move-file'
 import fsP from 'node:fs/promises'
-import { exiftool } from 'exiftool-vendored'
+import { ExifDateTime, exiftool } from 'exiftool-vendored'
 import { program } from "commander"
+import { mkdir } from 'fs/promises'
 
 chromium.use(stealth())
 
@@ -22,14 +23,18 @@ const getProgress = async (downloadPath) => {
 }
 
 const saveProgress = async (directory, url) => {
+  await mkdir(directory, { recursive: true })
   await fsP.writeFile(path.join(directory, '.lastdone'), url, 'utf-8')
 }
 
 const start = async (
-  headless,
-  photoDirectory,
-  sessionDirectory,
-  initialPhotoUrl
+  {
+    headless,
+    photoDirectory,
+    sessionDirectory,
+    initialPhotoUrl,
+    writeScrapedExif
+  }
 ) => {
   let startLink
   try {
@@ -62,6 +67,8 @@ const start = async (
 
   await page.goto('https://photos.google.com')
 
+  // TODO check if on login page
+
   const latestPhoto = await getLatestPhoto(page)
   if (!latestPhoto) {
     console.log('Could not determine latest photo')
@@ -75,7 +82,13 @@ const start = async (
   /*
     We download the first (Oldest) photo and overwrite it if it already exists. Otherwise running first time, it will skip the first photo.
   */
-  await downloadPhoto(page, photoDirectory, true)
+  await downloadPhoto(
+    page,
+    {
+      photoDirectory, overwrite: true,
+      writeScrapedExif: writeScrapedExif
+    }
+  )
 
   while (true) {
     const currentUrl = page.url()
@@ -98,7 +111,13 @@ const start = async (
       return url.host === 'photos.google.com' && url.href !== currentUrl
     })
 
-    await downloadPhoto(page, photoDirectory)
+    await downloadPhoto(
+      page,
+      {
+        photoDirectory: photoDirectory,
+        writeScrapedExif: writeScrapedExif
+      }
+    )
     await saveProgress(photoDirectory, page.url())
   }
   await cleanup()
@@ -115,7 +134,11 @@ const setup = async (sessionDirectory) => {
   console.log('Close browser once you are logged inside Google Photos')
 }
 
-const downloadPhoto = async (page, downloadPath, overwrite = false) => {
+const downloadPhoto = async (page, {
+  photoDirectory,
+  overwrite = false,
+  writeScrapedExif = false
+}) => {
   const downloadPromise = page.waitForEvent('download')
 
   await page.keyboard.down('Shift')
@@ -146,18 +169,24 @@ const downloadPhoto = async (page, downloadPath, overwrite = false) => {
       const date = new Date(lastMatch)
       year = date.getFullYear()
       month = date.getMonth() + 1
+
+      if (writeScrapedExif) {
+        console.log("Saving scraped datetime to exif metadata")
+        await exiftool.write(temp, { DateTimeOriginal: ExifDateTime.fromMillis(date.getTime()) })
+      }
     } else {
+      // TODO: Check wat er hier nog fout gaat op server
       console.log('Could not find metadata in HTML, was language set to english?')
     }
   }
 
   try {
-    await moveFile(temp, `${downloadPath}/${year}/${month}/${fileName}`, { overwrite })
+    await moveFile(temp, `${photoDirectory}/${year}/${month}/${fileName}`, { overwrite })
     console.log('Download Complete:', `${year}/${month}/${fileName}`)
   } catch (error) {
     const randomNumber = Math.floor(Math.random() * 1000000)
     const fileName = await download.suggestedFilename().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
-    await moveFile(temp, `${downloadPath}/${year}/${month}/${fileName}`)
+    await moveFile(temp, `${photoDirectory}/${year}/${month}/${fileName}`)
     console.log('Download Complete:', `${year}/${month}/${fileName}`)
   }
 }
@@ -168,7 +197,7 @@ const downloadPhoto = async (page, downloadPath, overwrite = false) => {
   we get the active element, which is the latest photo.
 */
 const getLatestPhoto = async (page) => {
-  await sleep(500)
+  await sleep(2000)
   await page.keyboard.press('ArrowRight')
   await sleep(500)
   return await page.evaluate(() => document.activeElement.href)
@@ -189,13 +218,16 @@ program
   .option('--photo-directory <value>', 'Directory to download photos to', './download')
   .option('--session-directory <value>', 'Chrome session directory', './session')
   .option('--initial-photo-url <value>', 'URL of your oldest photo. This parameter is only used when the .lastdone file is not available')
+  .option('--write-scraped-exif', 'When no data metadata is available, set scraped webpage date data as metadata', false)
+  // TODO: Add option for flat directory structure
   .action(options => {
-    start(
-      options.headless === "true",
-      options.photoDirectory,
-      options.sessionDirectory,
-      options.initialPhotoUrl
-    )
+    start({
+      headless: options.headless === "true",
+      photoDirectory: options.photoDirectory,
+      sessionDirectory: options.sessionDirectory,
+      initialPhotoUrl: options.initialPhotoUrl,
+      writeScrapedExif: options.writeScrapedExif
+    })
   })
 
 program
