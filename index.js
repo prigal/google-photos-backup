@@ -77,8 +77,6 @@ const start = async (
     return cleanup()
   }
 
-  // TODO check if on login page
-
   const latestPhoto = await getLatestPhoto(page)
   if (!latestPhoto) {
     console.log('Could not determine latest photo')
@@ -188,7 +186,6 @@ const downloadPhoto = async (page, {
         await exiftool.write(temp, { DateTimeOriginal: ExifDateTime.fromMillis(date.getTime()) })
       }
     } else {
-      // TODO: Check wat er hier nog fout gaat op server
       console.log('Could not find metadata in HTML, was language set to english?')
     }
   }
