@@ -8,7 +8,7 @@ fi
 
 # Environment variables
 
-PARAMS="--session-directory ./sessiond --photo-directory ./downloadd"
+PARAMS="--session-directory /session --photo-directory /download"
 if [ -n "$INITIAL_PHOTO_URL" ]; then
   PARAMS="$PARAMS --initial-photo-url $INITIAL_PHOTO_URL"
 fi
