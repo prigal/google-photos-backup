@@ -3,11 +3,10 @@
   "version": "1.2.0",
   "description": "Download photos from Google Photos using Playwright",
   "repository": "vikas5914/google-photos-backup",
-  "main": "index.js",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "setup": "node setup.js"
+    "start": "node src/index.js"
   },
   "author": {
     "name": "Vikas Kapadiya",

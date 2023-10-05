@@ -48,7 +48,7 @@ const start = async (
       startLink = initialPhotoUrl
     } else {
       console.log('Please pass initial photo url using the --initial-photo-url parameter or manually populate the .lastdone file in your photo directory')
-      return
+      return process.exit(1)
     }
   }
   console.log('Starting from:', new URL(startLink).href)
@@ -74,13 +74,15 @@ const start = async (
 
   if (pageUrl !== mainGooglePhotosUrl) {
     console.log(`Page was redirected to ${pageUrl}, please authenticate first using the 'setup' command`)
-    return cleanup()
+    await cleanup()
+    return process.exit(1)
   }
 
   const latestPhoto = await getLatestPhoto(page)
   if (!latestPhoto) {
     console.log('Could not determine latest photo')
-    return await cleanup()
+    await cleanup()
+    return process.exit(1)
   }
   console.log('Latest Photo:', latestPhoto)
   console.log('-------------------------------------')
