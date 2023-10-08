@@ -3,10 +3,10 @@
   "version": "1.2.0",
   "description": "Download photos from Google Photos using Playwright",
   "repository": "vikas5914/google-photos-backup",
-  "main": "src/index.js",
-  "type": "module",
+  "main": "src/index.ts",
   "scripts": {
-    "start": "node src/index.js"
+    "build": "tsc",
+    "start": "tsc && node dist/index.js"
   },
   "author": {
     "name": "Vikas Kapadiya",
@@ -23,15 +23,17 @@
     "photo"
   ],
   "dependencies": {
+    "@npmcli/fs": "^3.1.0",
     "commander": "^11.0.0",
     "exiftool-vendored": "^22.0.0",
-    "move-file": "^3.1.0",
     "pino": "^8.14.1",
     "playwright": "^1.35.1",
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
-    "standard": "^17.0.0"
+    "@types/node": "^20.8.3",
+    "standard": "^17.0.0",
+    "typescript": "^5.2.2"
   }
 }

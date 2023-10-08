@@ -1,30 +1,43 @@
 import { chromium } from 'playwright-extra'
 import stealth from 'puppeteer-extra-plugin-stealth'
 import path from 'path'
-import { moveFile } from 'move-file'
 import fsP from 'node:fs/promises'
+import { moveFile } from '@npmcli/fs'
 import { ExifDateTime, exiftool } from 'exiftool-vendored'
 import { program } from "commander"
 import { mkdir } from 'fs/promises'
+import { Page } from 'playwright-core'
 
 chromium.use(stealth())
 
-// accept --headless=false argument to run in headful mode
-if (process.argv[2] === '--headless=false') {
-  headless = false
-}
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
-
-const getProgress = async (downloadPath) => {
+const getProgress = async (downloadPath: string): Promise<string> => {
   const lastDone = await fsP.readFile(path.join(downloadPath, '.lastdone'), 'utf-8')
   if (lastDone === '') throw new Error("empty file")
   return lastDone
 }
 
-const saveProgress = async (directory, url) => {
-  await mkdir(directory, { recursive: true })
-  await fsP.writeFile(path.join(directory, '.lastdone'), url, 'utf-8')
+const saveProgress = async (photoDirectory: string, url: string): Promise<void> => {
+  await mkdir(photoDirectory, { recursive: true })
+  await fsP.writeFile(path.join(photoDirectory, '.lastdone'), url, 'utf-8')
+}
+
+/*
+  This function is used to get the latest photo in the library. Once Page is loaded,
+  We press right click, It will select the latest photo in the grid. And then
+  we get the active element, which is the latest photo.
+*/
+const getLatestPhoto = async (page: Page) => {
+  await sleep(2000)
+  await page.keyboard.press('ArrowRight')
+  await sleep(500)
+  return await page.evaluate(() => (document.activeElement as HTMLLinkElement)?.href)
+}
+
+// remove /u/0/
+const clean = (link: string) => {
+  return link.replace(/\/u\/\d+\//, '/')
 }
 
 const start = async (
@@ -35,9 +48,16 @@ const start = async (
     initialPhotoUrl,
     writeScrapedExif,
     flatDirectoryStructure
+  }: {
+    headless: boolean,
+    photoDirectory: string,
+    sessionDirectory: string,
+    initialPhotoUrl: string,
+    writeScrapedExif: boolean
+    flatDirectoryStructure: boolean
   }
-) => {
-  let startLink
+): Promise<void> => {
+  let startLink: string
   try {
     startLink = await getProgress(photoDirectory)
   } catch (e) {
@@ -116,7 +136,8 @@ const start = async (
       Note: I have tried both left arrow press and clicking directly the left side of arrow using playwright click method.
       However, both of them are not working. So, I have injected the click method in the html.
     */
-    await page.evaluate(() => document.getElementsByClassName('SxgK2b OQEhnd')[0].click())
+    // TODO check if better class name is avalable
+    await page.evaluate(() => (document.getElementsByClassName('SxgK2b OQEhnd')[0] as HTMLElement).click())
 
     // we wait until new photo is loaded
     await page.waitForURL((url) => {
@@ -135,7 +156,7 @@ const start = async (
   await cleanup()
 }
 
-const setup = async (sessionDirectory) => {
+const setup = async (sessionDirectory: string) => {
   const browser = await chromium.launchPersistentContext(path.resolve(sessionDirectory), {
     headless: false,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -146,25 +167,36 @@ const setup = async (sessionDirectory) => {
   console.log('Close browser once you are logged inside Google Photos')
 }
 
-const downloadPhoto = async (page, {
+const downloadPhoto = async (page: Page, {
   photoDirectory,
   overwrite = false,
   writeScrapedExif = false,
   flatDirectoryStructure = false
-}) => {
+}: {
+  photoDirectory: string,
+  overwrite?: boolean,
+  writeScrapedExif?: boolean
+  flatDirectoryStructure?: boolean
+}): Promise<void> => {
   const downloadPromise = page.waitForEvent('download')
 
   await page.keyboard.down('Shift')
   await page.keyboard.press('KeyD')
 
   const download = await downloadPromise
-  const temp = await download.path()
-  const fileName = await download.suggestedFilename()
+  const tempPath = await download.path()
+  const suggestedFilename = download.suggestedFilename()
 
-  const metadata = await exiftool.read(temp)
+  if (!tempPath) {
+    console.log("Could not download file")
+    process.exit(1)
+  }
 
-  let year = metadata.DateTimeOriginal?.year || 1970
-  let month = metadata.DateTimeOriginal?.month || 1
+  const metadata = await exiftool.read(tempPath)
+  const dateTimeOriginal = (metadata.DateTimeOriginal as ExifDateTime)
+
+  let year = dateTimeOriginal?.year || 1970
+  let month = dateTimeOriginal?.month || 1
 
   if (year === 1970 && month === 1) {
     // if metadata is not available, we try to get the date from the html
@@ -176,8 +208,9 @@ const downloadPhoto = async (page, {
     const regex = /aria-label="(?:Photo|Video) ((?:[–-]) ([^"–-]+))+"/
     const match = regex.exec(html)
 
-    if (match) {
-      const lastMatch = match.pop()
+
+    const lastMatch = match?.pop()
+    if (lastMatch) {
       console.log(`Metadata in HTML: ${lastMatch}`)
       const date = new Date(lastMatch)
       year = date.getFullYear()
@@ -185,7 +218,7 @@ const downloadPhoto = async (page, {
 
       if (writeScrapedExif) {
         console.log("Saving scraped datetime to exif metadata")
-        await exiftool.write(temp, { DateTimeOriginal: ExifDateTime.fromMillis(date.getTime()) })
+        await exiftool.write(tempPath, { DateTimeOriginal: ExifDateTime.fromMillis(date.getTime()) })
       }
     } else {
       console.log('Could not find metadata in HTML, was language set to english?')
@@ -193,36 +226,17 @@ const downloadPhoto = async (page, {
   }
 
   const destDir = flatDirectoryStructure
-    ? path.join(photoDirectory, fileName)
-    : path.join(photoDirectory, `${year}`, `${month}`, fileName)
+    ? path.join(photoDirectory, suggestedFilename)
+    : path.join(photoDirectory, `${year}`, `${month}`, suggestedFilename)
 
   try {
-    await moveFile(temp, destDir, { overwrite })
-    console.log('Download Complete:', destDir)
+    await moveFile(tempPath, destDir, { overwrite })
+    console.log(`Download Complete: ${destDir}`)
   } catch (error) {
-    const randomNumber = Math.floor(Math.random() * 1000000)
-    const fileName = await download.suggestedFilename().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
-    await moveFile(temp, `${photoDirectory}/${year}/${month}/${fileName}`)
-    console.log('Download Complete:', `${year}/${month}/${fileName}`)
+    console.log(`Could not move file to ${destDir}: ${error}`)
   }
 }
 
-/*
-  This function is used to get the latest photo in the library. Once Page is loaded,
-  We press right click, It will select the latest photo in the grid. And then
-  we get the active element, which is the latest photo.
-*/
-const getLatestPhoto = async (page) => {
-  await sleep(2000)
-  await page.keyboard.press('ArrowRight')
-  await sleep(500)
-  return await page.evaluate(() => document.activeElement.href)
-}
-
-// remove /u/0/
-const clean = (link) => {
-  return link.replace(/\/u\/\d+\//, '/')
-}
 
 program
   .name('google-photos-backup')
