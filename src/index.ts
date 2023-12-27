@@ -71,6 +71,13 @@ const start = async (
       return process.exit(1)
     }
   }
+  console.log(`Chrome session directory: ${sessionDirectory} (${await (async () => {
+    try {
+      return (await fsP.readdir(sessionDirectory)).length + ' children'
+    } catch (e) {
+      return e
+    }
+  })()})`)
   console.log('Starting from:', new URL(startLink).href)
 
   const browser = await chromium.launchPersistentContext(path.resolve(sessionDirectory), {
