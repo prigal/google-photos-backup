@@ -21,7 +21,7 @@ fi
 
 # Execute script
 
-node ./index.js start $PARAMS
+node ./dist/index.js start $PARAMS
 
 EXIT_CODE=$(echo $?)
 

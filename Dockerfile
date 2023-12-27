@@ -10,11 +10,12 @@ RUN apt-get update && apt-get -y install cron
 # where available (npm@5+)
 COPY package*.json ./
 
-RUN npm ci --omit=dev
+RUN npm ci
 RUN npx playwright install --with-deps chrome
 
 # Move app src
 COPY src/. src/.
+COPY tsconfig.json ./.
 # Buld app
 RUN npm run build
 
