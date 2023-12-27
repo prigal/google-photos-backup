@@ -13,8 +13,10 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 RUN npx playwright install --with-deps chrome
 
-# Copy app source
-COPY ./dist/. .
+# Move app src
+COPY src/. src/.
+# Buld app
+RUN npm run build
 
 # Copy docker bashs cripts
 COPY docker/job.sh .
