@@ -76,6 +76,7 @@ const start = async (
   const browser = await chromium.launchPersistentContext(path.resolve(sessionDirectory), {
     headless,
     acceptDownloads: true,
+    channel: 'chrome',
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   })
 
@@ -159,6 +160,7 @@ const start = async (
 const setup = async (sessionDirectory: string) => {
   const browser = await chromium.launchPersistentContext(path.resolve(sessionDirectory), {
     headless: false,
+    channel: 'chrome',
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   })
   const page = await browser.newPage()

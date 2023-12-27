@@ -11,10 +11,10 @@ RUN apt-get update && apt-get -y install cron
 COPY package*.json ./
 
 RUN npm ci --omit=dev
-RUN npx playwright install --with-deps chromium
+RUN npx playwright install --with-deps chrome
 
 # Copy app source
-COPY dist/. .
+COPY ./dist/. .
 
 # Copy docker bashs cripts
 COPY docker/job.sh .
