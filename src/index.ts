@@ -67,7 +67,7 @@ const start = async (
       await saveProgress(photoDirectory, initialPhotoUrl)
       startLink = initialPhotoUrl
     } else {
-      console.log('Please pass initial photo url using the --initial-photo-url parameter or manually populate the .lastdone file in your photo directory')
+      console.error('Please pass initial photo url using the --initial-photo-url parameter or manually populate the .lastdone file in your photo directory')
       return process.exit(1)
     }
   }
@@ -101,14 +101,14 @@ const start = async (
   const pageUrl = page.url()
 
   if (pageUrl !== mainGooglePhotosUrl) {
-    console.log(`Page was redirected to ${pageUrl}, please authenticate first using the 'setup' command`)
+    console.error(`Page was redirected to ${pageUrl}, please authenticate first using the 'setup' command`)
     await cleanup()
     return process.exit(1)
   }
 
   const latestPhoto = await getLatestPhoto(page)
   if (!latestPhoto) {
-    console.log('Could not determine latest photo')
+    console.error('Could not determine latest photo')
     await cleanup()
     return process.exit(1)
   }
@@ -145,7 +145,30 @@ const start = async (
       However, both of them are not working. So, I have injected the click method in the html.
     */
     // TODO check if better class name is avalable
-    await page.evaluate(() => (document.getElementsByClassName('SxgK2b OQEhnd')[0] as HTMLElement).click())
+    const clicked = await page.evaluate(() => {
+      const elements = document.getElementsByClassName('SxgK2b OQEhnd')
+
+      // Check if previous arrow is visible
+      let isVisible = false
+      for (const element of elements) {
+        if ((element as HTMLElement).offsetParent !== null) {
+          isVisible = true;
+          break;
+        }
+      }
+      if (!isVisible) { return false }
+
+      (elements[0] as HTMLElement).click()
+      return true
+    })
+
+    if (!clicked) {
+      console.error(
+        `Could not navigate to previous photo from ${currentUrl}\n` +
+        'Is the current picture part of the main photo library (not archived or deleted)?'
+      )
+      process.exit(1)
+    }
 
     // we wait until new photo is loaded
     await page.waitForURL((url) => {
@@ -197,7 +220,7 @@ const downloadPhoto = async (page: Page, {
   const suggestedFilename = download.suggestedFilename()
 
   if (!tempPath) {
-    console.log("Could not download file")
+    console.error("Could not download file")
     process.exit(1)
   }
 
