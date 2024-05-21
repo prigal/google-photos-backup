@@ -1,6 +1,6 @@
 {
   "name": "google-photos-backup",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Download photos from Google Photos using Playwright",
   "repository": "vikas5914/google-photos-backup",
   "main": "src/index.ts",
