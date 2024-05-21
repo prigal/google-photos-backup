@@ -117,6 +117,7 @@ const start = async (
 
   await page.goto(clean(startLink))
 
+  await sleep(1000)
   /*
     We download the first (Oldest) photo and overwrite it if it already exists. Otherwise running first time, it will skip the first photo.
   */
