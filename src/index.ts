@@ -136,7 +136,7 @@ const start = async (
   )
 
   while (true) {
-    const currentUrl = page.url()
+    const currentUrl = await page.url()
 
     if (clean(currentUrl) === clean(latestPhoto)) {
       console.log('-------------------------------------')
@@ -150,30 +150,7 @@ const start = async (
       However, both of them are not working. So, I have injected the click method in the html.
     */
     // TODO check if better class name is avalable
-    const clicked = await page.evaluate(() => {
-      const elements = document.getElementsByClassName('SxgK2b OQEhnd')
-
-      // Check if previous arrow is visible
-      let isVisible = false
-      for (const element of elements) {
-        if ((element as HTMLElement).offsetParent !== null) {
-          isVisible = true;
-          break;
-        }
-      }
-      if (!isVisible) { return false }
-
-      (elements[0] as HTMLElement).click()
-      return true
-    })
-
-    if (!clicked) {
-      console.error(
-        `Could not navigate to previous photo from ${currentUrl}\n` +
-        'Is the current picture part of the main photo library (not archived or deleted)?'
-      )
-      process.exit(1)
-    }
+    await page.evaluate(() => (document.getElementsByClassName('SxgK2b OQEhnd')[0] as HTMLElement).click())
 
     // we wait until new photo is loaded
     await page.waitForURL((url) => {
