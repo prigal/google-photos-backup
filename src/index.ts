@@ -14,6 +14,22 @@ stealthPlugin.enabledEvasions.delete('media.codecs')
 
 chromium.use(stealthPlugin)
 
+console.log = (function() {
+  var console_log = console.log;
+  var timeStart = new Date().getTime();
+  
+  return function() {
+    var delta = new Date().getTime() - timeStart;
+    var args = [];
+    args.push(new Date().toLocaleString('fr')   + ' (');
+    args.push((delta / 1000).toFixed(2) + ') :');
+    for(var i = 0; i < arguments.length; i++) {
+      args.push(arguments[i]);
+    }
+    console_log.apply(console, args);
+  };
+})();
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 const getProgress = async (downloadPath: string): Promise<string> => {
@@ -125,6 +141,9 @@ const start = async (
   /*
     We download the first (Oldest) photo and overwrite it if it already exists. Otherwise running first time, it will skip the first photo.
   */
+
+  console.log(page.url() + ' : START')
+
   await downloadPhoto(
     page,
     {
@@ -156,6 +175,8 @@ const start = async (
     await page.waitForURL((url) => {
       return url.host === 'photos.google.com' && url.href !== currentUrl
     })
+
+    console.log(page.url() + ' : START')
 
     await downloadPhoto(
       page,
@@ -202,7 +223,7 @@ const downloadPhoto = async (page: Page, {
   const suggestedFilename = download.suggestedFilename()
 
   if (!tempPath) {
-    console.error("Could not download file")
+    console.error('\x1b[31m'," - Could not download file", '\x1b[0m')
     process.exit(1)
   }
 
@@ -214,7 +235,7 @@ const downloadPhoto = async (page: Page, {
 
   if (year === 1970 && month === 1) {
     // if metadata is not available, we try to get the date from the html
-    console.log('Metadata not found, trying to get date from html')
+    console.log(' - Metadata not found, trying to get date from html')
     const data = await page.request.get(page.url())
     const html = await data.text()
 
@@ -225,17 +246,17 @@ const downloadPhoto = async (page: Page, {
 
     const lastMatch = match?.pop()
     if (lastMatch) {
-      console.log(`Metadata in HTML: ${lastMatch}`)
+      console.log(` - Metadata in HTML: ${lastMatch}`)
       const date = new Date(lastMatch)
       year = date.getFullYear()
       month = date.getMonth() + 1
 
       if (writeScrapedExif) {
-        console.log("Saving scraped datetime to exif metadata")
+        console.log(" - Scraped datetime saved to exif metadata : "+date)
         await exiftool.write(tempPath, { DateTimeOriginal: ExifDateTime.fromMillis(date.getTime()) })
       }
     } else {
-      console.log('Could not find metadata in HTML, was language set to english?')
+      console.log('\x1b[31m',' - Could not convert date, was language set to french?', '\x1b[0m')
     }
   }
 
@@ -245,9 +266,9 @@ const downloadPhoto = async (page: Page, {
 
   try {
     await moveFile(tempPath, destDir, { overwrite })
-    console.log(`Download Complete: ${destDir}`)
+    console.log('\x1b[32m', ' - Download Complete: '+ destDir, '\x1b[0m')
   } catch (error) {
-    console.log(`Could not move file to ${destDir}: ${error}`)
+    console.log('\x1b[31m',` - Could not move file to ${destDir}: ${error}`, '\x1b[0m')
   }
 }
 
