@@ -9,7 +9,8 @@ services:
       - INITIAL_PHOTO_URL=${INITIAL_PHOTO_URL}
       - WRITE_SCRAPED_EXIF=${WRITE_SCRAPED_EXIF}
       - FLAT_DIRECTORY_STRUCTURE=${FLAT_DIRECTORY_STRUCTURE}
-
+      - BROWSER_LOCALE=${BROWSER_LOCALE}
+      - BROWSER_TIMEZONE_ID=${BROWSER_TIMEZONE_ID}
     volumes:
       - ./session:/session
       - ./library:/download
