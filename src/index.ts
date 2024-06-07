@@ -8,7 +8,11 @@ import { program } from "commander"
 import { mkdir } from 'fs/promises'
 import { Page } from 'playwright-core'
 
-chromium.use(stealth())
+const stealthPlugin = stealth()
+stealthPlugin.enabledEvasions.delete('iframe.contentWindow');
+stealthPlugin.enabledEvasions.delete('media.codecs')
+
+chromium.use(stealthPlugin)
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
