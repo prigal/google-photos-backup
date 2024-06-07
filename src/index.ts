@@ -67,14 +67,18 @@ const start = async (
     sessionDirectory,
     initialPhotoUrl,
     writeScrapedExif,
-    flatDirectoryStructure
+    flatDirectoryStructure,
+    browserLocale,
+    browserTimezoneId
   }: {
     headless: boolean,
     photoDirectory: string,
     sessionDirectory: string,
     initialPhotoUrl: string,
-    writeScrapedExif: boolean
-    flatDirectoryStructure: boolean
+    writeScrapedExif: boolean,
+    flatDirectoryStructure: boolean,
+    browserLocale: string,
+    browserTimezoneId: string
   }
 ): Promise<void> => {
   let startLink: string
@@ -104,7 +108,9 @@ const start = async (
     headless,
     acceptDownloads: true,
     channel: 'chrome',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    locale: browserLocale,
+    timezoneId: browserTimezoneId
   })
 
   const cleanup = async () => {
@@ -190,11 +196,13 @@ const start = async (
   await cleanup()
 }
 
-const setup = async (sessionDirectory: string) => {
+const setup = async (sessionDirectory: string,browserLocale: string,browserTimezoneId: string) => {
   const browser = await chromium.launchPersistentContext(path.resolve(sessionDirectory), {
     headless: false,
     channel: 'chrome',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    locale: browserLocale,
+    timezoneId: browserTimezoneId
   })
   const page = await browser.newPage()
   await page.goto('https://photos.google.com/')
@@ -285,6 +293,8 @@ program
   .option('--initial-photo-url <value>', 'URL of your oldest photo. This parameter is only used when the .lastdone file is not available')
   .option('--write-scraped-exif', 'When no data metadata is available, set scraped webpage date data as metadata', false)
   .option('--flat-directory-structure', 'Insteas of using a nested folder structure (year, month), download all photos to a single folder', false)
+  .option('--browser-locale <value>', 'Emulate specific locale', 'en-US')
+  .option('--browser-timezone-id <value>', 'Emulate specific timezone id', 'UTC')
   .action(options => {
     start({
       headless: options.headless === "true",
@@ -292,7 +302,9 @@ program
       sessionDirectory: options.sessionDirectory,
       initialPhotoUrl: options.initialPhotoUrl,
       writeScrapedExif: options.writeScrapedExif,
-      flatDirectoryStructure: options.flatDirectoryStructure
+      flatDirectoryStructure: options.flatDirectoryStructure,
+      browserLocale: options.browserLocale,
+      browserTimezoneId: options.browserTimezoneId
     })
   })
 
