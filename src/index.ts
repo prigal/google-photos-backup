@@ -228,7 +228,7 @@ const downloadPhoto = async (page: Page, {
 
   const download = await downloadPromise
   const tempPath = await download.path()
-  const suggestedFilename = download.suggestedFilename()
+  const suggestedFilename = await download.suggestedFilename()
 
   if (!tempPath) {
     console.error('\x1b[31m'," - Could not download file", '\x1b[0m')
@@ -311,8 +311,10 @@ program
 program
   .command('setup')
   .option('--session-directory <value>', 'Chrome session directory', './session')
+  .option('--browser-locale <value>', 'Emulate specific locale', 'en-US')
+  .option('--browser-timezone-id <value>', 'Emulate specific timezone id', 'UTC')
   .action(options => {
-    setup(options.sessionDirectory)
+    setup(options.sessionDirectory, options.browserLocale, options.browserTimezoneId)
   })
 
 program.parse()
