@@ -221,7 +221,7 @@ const downloadPhoto = async (page: Page, {
   writeScrapedExif?: boolean
   flatDirectoryStructure?: boolean
 }): Promise<void> => {
-  const downloadPromise = page.waitForEvent('download')
+  const downloadPromise = page.waitForEvent('download', {timeout:100000})
 
   await page.keyboard.down('Shift')
   await page.keyboard.press('KeyD')
