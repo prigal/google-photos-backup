@@ -1,7 +1,7 @@
 version: "3"
 services:
   googlephotobackup:
-    build: .
+    image: prigal/google-photos-backup:latest
     environment:
       - CRON=${CRON}
       - HEALTHCHECK_HOST=${HEALTHCHECK_HOST}
