@@ -30,6 +30,164 @@ console.log = (function() {
   };
 })();
 
+
+const parseDate = (dateString: string, locale: string): Date | null => {
+  
+  let date = new Date
+
+  switch (locale) {
+    case 'fr-FR':
+      const moisEnFrancais: { [key: string]: number } = {
+        'janv.': 0,
+        'févr.': 1,
+        'mars': 2,
+        'avr.': 3,
+        'avril': 3,
+        'mai': 4,
+        'juin': 5,
+        'juil.': 6,
+        'août': 7,
+        'sept.': 8,
+        'oct.': 9,
+        'nov.': 10,
+        'déc.': 11
+      }
+    
+      const pieces = dateString.split(/[ ,:]+/)
+    
+      if (pieces.length !== 6) {
+        // Ensure that there are exactly 6 pieces in the input string
+        return null
+      }
+    
+      const day = parseInt(pieces[0], 10)
+      const month = moisEnFrancais[pieces[1].toLowerCase()]
+      const year = parseInt(pieces[2], 10)
+      const hour = parseInt(pieces[3], 10)
+      const minute = parseInt(pieces[4], 10)
+      const second = parseInt(pieces[5], 10)
+    
+      if (isNaN(day) || isNaN(month) || isNaN(year) || isNaN(hour) || isNaN(minute) || isNaN(second)) {
+        // Check for valid numeric values
+        return null
+      }
+    
+      date = new Date(year, month, day, hour, minute, second)
+    
+      if (isNaN(date.getTime())) {
+        // Check if the resulting Date object is valid
+        return null
+      }
+      break;
+  
+    default:
+      date = new Date(dateString)
+      break;
+  }
+
+  return date
+}
+
+const formatDate = (date: Date, locale:string): string => {
+  let formattedDate: string
+  let year: string
+  let month: string
+  let day: string
+  let hours: string
+  let minutes: string
+  let seconds: string
+
+  switch (locale) {
+    case 'fr-FR':
+      year = date.getFullYear().toString().padStart(4, '0');
+      month = (date.getMonth() + 1).toString().padStart(2, '0');
+      day = date.getDate().toString().padStart(2, '0');
+      hours = date.getHours().toString().padStart(2, '0');
+      minutes = date.getMinutes().toString().padStart(2, '0');
+      seconds = date.getSeconds().toString().padStart(2, '0');
+      formattedDate = `${year}:${month}:${day} ${hours}:${minutes}:${seconds}`
+      break;
+    case 'fs':
+      year = date.getFullYear().toString();
+      month = (date.getMonth() + 1).toString().padStart(2, '0');
+      day = date.getDate().toString().padStart(2, '0');
+      hours = date.getHours().toString().padStart(2, '0');
+      minutes = date.getMinutes().toString().padStart(2, '0');
+      seconds = date.getSeconds().toString().padStart(2, '0');
+      formattedDate = `${year}${month}${day}_${hours}${minutes}${seconds}`;
+      break
+    default:
+      const exifDate = ExifDateTime.fromMillis(date.getTime());
+      formattedDate = exifDate.toString() || Date.toString();
+      break;
+  }
+  return formattedDate
+}
+
+
+function convertUTCDateToTimezone(utcDate: Date, timezoneId: string): Date {
+  // Check if the date is in UTC format by examining its string representation
+  const utcDateString = utcDate.toISOString();
+  if (!utcDateString.endsWith('Z') && !utcDateString.includes('+00:00') && !utcDateString.includes('-00:00')) {
+    // The date is not in UTC format, return the input date unchanged
+    console.error('\x1b[31m'," - The provided date is not in UTC format, return the provided date", '\x1b[0m')
+    return utcDate;
+  }
+
+  // Get the UTC time parts from the Date object
+  const utcYear = utcDate.getUTCFullYear();
+  const utcMonth = utcDate.getUTCMonth();
+  const utcDay = utcDate.getUTCDate();
+  const utcHour = utcDate.getUTCHours();
+  const utcMinute = utcDate.getUTCMinutes();
+  const utcSecond = utcDate.getUTCSeconds();
+  const utcMillisecond = utcDate.getUTCMilliseconds();
+
+  // Construct an ISO string for the UTC date
+  const isoDateString = new Date(Date.UTC(
+    utcYear,
+    utcMonth,
+    utcDay,
+    utcHour,
+    utcMinute,
+    utcSecond,
+    utcMillisecond
+  )).toISOString();
+
+  // Use Intl.DateTimeFormat to format the UTC date to the target timezone
+  const options = {
+    timeZone: timezoneId,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    fractionalSecondDigits: 3, // Include milliseconds
+    hour12: false
+  };
+  const formatter = new Intl.DateTimeFormat('en-US', options);
+  const parts = formatter.formatToParts(new Date(isoDateString));
+
+  // Extract the relevant parts from the formatted date
+  const year = parseInt(parts.find(part => part.type === 'year')?.value || '0', 10);
+  const month = parseInt(parts.find(part => part.type === 'month')?.value || '0', 10) - 1; // JavaScript months are 0-based
+  const day = parseInt(parts.find(part => part.type === 'day')?.value || '0', 10);
+  const hour = parseInt(parts.find(part => part.type === 'hour')?.value || '0', 10);
+  const minute = parseInt(parts.find(part => part.type === 'minute')?.value || '0', 10);
+  const second = parseInt(parts.find(part => part.type === 'second')?.value || '0', 10);
+  const millisecond = parseInt(parts.find(part => part.type === 'fractionalSecond')?.value || '0', 10);
+
+  // Create a new Date object in the target timezone
+  const targetDate = new Date(year, month, day, hour, minute, second, millisecond);
+
+  // Adjust for the timezone offset manually because JavaScript Date uses local time by default
+  const offsetInMinutes = targetDate.getTimezoneOffset();
+  const adjustedTime = targetDate.getTime() - offsetInMinutes * 60000;
+
+  return new Date(adjustedTime);
+}
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 const getProgress = async (downloadPath: string): Promise<string> => {
@@ -156,7 +314,9 @@ const start = async (
       photoDirectory,
       overwrite: true,
       writeScrapedExif,
-      flatDirectoryStructure
+      flatDirectoryStructure,
+      browserLocale,
+      browserTimezoneId
     }
   )
 
@@ -188,7 +348,9 @@ const start = async (
       page,
       {
         photoDirectory: photoDirectory,
-        writeScrapedExif: writeScrapedExif
+        writeScrapedExif: writeScrapedExif,
+        browserLocale: browserLocale,
+        browserTimezoneId: browserTimezoneId
       }
     )
     await saveProgress(photoDirectory, page.url())
@@ -214,12 +376,16 @@ const downloadPhoto = async (page: Page, {
   photoDirectory,
   overwrite = false,
   writeScrapedExif = false,
-  flatDirectoryStructure = false
+  flatDirectoryStructure = false,
+  browserLocale,
+  browserTimezoneId
 }: {
   photoDirectory: string,
   overwrite?: boolean,
   writeScrapedExif?: boolean
   flatDirectoryStructure?: boolean
+  browserLocale: string,
+  browserTimezoneId: string
 }): Promise<void> => {
   const downloadPromise = page.waitForEvent('download', {timeout:100000})
 
@@ -235,45 +401,85 @@ const downloadPhoto = async (page: Page, {
     process.exit(1)
   }
 
+  let selectedDate = new Date 
   const metadata = await exiftool.read(tempPath)
   const dateTimeOriginal = (metadata.DateTimeOriginal as ExifDateTime)
+  // Use createDate for QuickTime mp4 container
+  // Todo : check createDate format and eventually fix it (UTC to GMT)
+  const createDate = (metadata.CreateDate as ExifDateTime)
 
-  let year = dateTimeOriginal?.year || 1970
-  let month = dateTimeOriginal?.month || 1
+  let year = 1970
+  let month = 1
+  if(dateTimeOriginal){
+    selectedDate=dateTimeOriginal.toDate()
+    year = dateTimeOriginal?.year || 1970
+    month = dateTimeOriginal?.month || 1
+  }else{
+    if(createDate){
+      selectedDate=createDate.toDate()
+      year = createDate?.year || 1970
+      month = createDate?.month || 1
+    } 
+  }
+
 
   if (year === 1970 && month === 1) {
     // if metadata is not available, we try to get the date from the html
     console.log(' - Metadata not found, trying to get date from html')
     const data = await page.request.get(page.url())
     const html = await data.text()
+    
+    let regex = /aria-label="(?:Photo|Video) ((?:[–-]) ([^"–-]+))+"/
+    switch (browserLocale) {
+      case 'fr-FR':
+        regex = /aria-label="(?:Animation|Photo|Vidéo) ((?:[–-]) ([^"–-]+))+"/
+        break;
+    }
 
-    // RegEx only works for English
-    const regex = /aria-label="(?:Photo|Video) ((?:[–-]) ([^"–-]+))+"/
     const match = regex.exec(html)
 
-
     const lastMatch = match?.pop()
+
     if (lastMatch) {
       console.log(` - Metadata in HTML: ${lastMatch}`)
-      const date = new Date(lastMatch)
-      year = date.getFullYear()
-      month = date.getMonth() + 1
+      const date = parseDate(lastMatch, browserLocale)
 
-      if (writeScrapedExif) {
-        console.log(" - Scraped datetime saved to exif metadata : "+date)
-        await exiftool.write(tempPath, { DateTimeOriginal: ExifDateTime.fromMillis(date.getTime()) })
+      if(date){
+        selectedDate=date
+        console.log(` - Date ${browserLocale} : ${date}`)
+        year = date.getFullYear()
+        month = date.getMonth() + 1
+
+        if (writeScrapedExif) {
+          try {
+            await exiftool.write(tempPath, { DateTimeOriginal: formatDate(date, browserLocale) })
+            console.log(" - Scraped datetime saved to exif metadata : "+date)
+          }catch(error){
+            await exiftool.write(tempPath + '.xmp', { DateTimeOriginal: formatDate(date, browserLocale) })
+            console.log(" - Can't save to exif, scraped datetime saved to XMP file : "+date)
+          }
+        }
+
+      }else{
+        console.log('\x1b[31m',' - Could not parse scrapped date, maybe check langage ?', '\x1b[0m')
       }
-    } else {
-      console.log('\x1b[31m',' - Could not convert date, was language set to french?', '\x1b[0m')
+
+    }else{
+      console.log('\x1b[31m',' - Could not match date, was language set to french?', '\x1b[0m')
     }
   }
 
+  const newSuggestedFilename = formatDate(selectedDate,'fs')+'_'+suggestedFilename
+
   const destDir = flatDirectoryStructure
-    ? path.join(photoDirectory, suggestedFilename)
-    : path.join(photoDirectory, `${year}`, `${month}`, suggestedFilename)
+    ? path.join(photoDirectory, newSuggestedFilename)
+    : path.join(photoDirectory, `${year}`, `${month}`, newSuggestedFilename)
 
   try {
     await moveFile(tempPath, destDir, { overwrite })
+    try {
+      await moveFile(tempPath + '.xmp', destDir + '.xmp', { overwrite })
+    }catch{}
     console.log('\x1b[32m', ' - Download Complete: '+ destDir, '\x1b[0m')
   } catch (error) {
     console.log('\x1b[31m',` - Could not move file to ${destDir}: ${error}`, '\x1b[0m')
