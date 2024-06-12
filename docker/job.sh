@@ -18,6 +18,12 @@ fi
 if [ "$FLAT_DIRECTORY_STRUCTURE" == "true" ]; then
   PARAMS="$PARAMS --flat-directory-structure"
 fi
+if [ -n "$BROWSER_LOCALE" ]; then
+  PARAMS="$PARAMS --browser-locale $BROWSER_LOCALE"
+fi
+if [ -n "$BROWSER_TIMEZONE_ID" ]; then
+  PARAMS="$PARAMS --browser-timezone-id $BROWSER_TIMEZONE_ID"
+fi
 
 # Execute script
 
