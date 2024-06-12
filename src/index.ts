@@ -401,7 +401,7 @@ const downloadPhoto = async (page: Page, {
       }
 
     }else{
-      console.log('\x1b[31m',' - Could not match date, was language set to french?', '\x1b[0m')
+      console.log('\x1b[31m',' - Could not match date, was locale correctly set ?', '\x1b[0m')
     }
   }
 
