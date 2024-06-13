@@ -30,8 +30,7 @@ console.log = (function() {
   };
 })();
 
-
-const parseDate = (dateString: string, locale: string): Date | null => {
+const parseGoogleDate = (dateString: string, locale: string): Date | null => {
   
   let date = new Date
 
@@ -352,9 +351,13 @@ const downloadPhoto = async (page: Page, {
     month = dateTimeOriginal?.month || 1
   }else{
     if(createDate){
-      selectedDate=createDate.toDate()
-      year = createDate?.year || 1970
-      month = createDate?.month || 1
+      try {
+        selectedDate=createDate.toDate()
+        year = createDate?.year || 1970
+        month = createDate?.month || 1
+      } catch (error) {
+        console.log(" - createDate time is not a valid ExifDateTime")
+      }
     } 
   }
 
@@ -378,7 +381,7 @@ const downloadPhoto = async (page: Page, {
 
     if (lastMatch) {
       console.log(` - Metadata in HTML: ${lastMatch}`)
-      const date = parseDate(lastMatch, browserLocale)
+      const date = parseGoogleDate(lastMatch, browserLocale)
 
       if(date){
         selectedDate=date
