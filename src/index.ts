@@ -322,107 +322,113 @@ const downloadPhoto = async (page: Page, {
   browserLocale: string,
   browserTimezoneId: string
 }): Promise<void> => {
-  const downloadPromise = page.waitForEvent('download', {timeout:100000})
 
-  await page.keyboard.down('Shift')
-  await page.keyboard.press('KeyD')
-
-  const download = await downloadPromise
-  const tempPath = await download.path()
-  const suggestedFilename = await download.suggestedFilename()
-
-  if (!tempPath) {
-    console.error('\x1b[31m'," - Could not download file", '\x1b[0m')
-    process.exit(1)
-  }
-
-  let selectedDate = new Date 
-  const metadata = await exiftool.read(tempPath)
-  const dateTimeOriginal = (metadata.DateTimeOriginal as ExifDateTime)
-  // Use createDate for QuickTime mp4 container
-  // Todo : check createDate format and eventually fix it (UTC to GMT)
-  const createDate = (metadata.CreateDate as ExifDateTime)
-
-  let year = 1970
-  let month = 1
-  if(dateTimeOriginal){
-    selectedDate=dateTimeOriginal.toDate()
-    year = dateTimeOriginal?.year || 1970
-    month = dateTimeOriginal?.month || 1
-  }else{
-    if(createDate){
-      try {
-        selectedDate=createDate.toDate()
-        year = createDate?.year || 1970
-        month = createDate?.month || 1
-      } catch (error) {
-        console.log(" - createDate time is not a valid ExifDateTime")
-      }
-    } 
-  }
+  try {
+    const downloadPromise = page.waitForEvent('download', {timeout:100000})
+    await page.keyboard.down('Shift')
+    await page.keyboard.press('KeyD')
+    const download = await downloadPromise
+    const tempPath = await download.path()
+    const suggestedFilename = await download.suggestedFilename()
 
 
-  if (year === 1970 && month === 1) {
-    // if metadata is not available, we try to get the date from the html
-    console.log(' - Metadata not found, trying to get date from html')
-    const data = await page.request.get(page.url())
-    const html = await data.text()
-    
-    let regex = /aria-label="(?:Photo|Video) ((?:[–-]) ([^"–-]+))+"/
-    switch (browserLocale) {
-      case 'fr-FR':
-        regex = /aria-label="(?:Animation|Photo|Vidéo) ((?:[–-]) ([^"–-]+))+"/
-        break;
+    if (!tempPath) {
+      console.error('\x1b[31m'," - Could not download file, check url, file could be corrupted", '\x1b[0m')
+      process.exit(1)
     }
 
-    const match = regex.exec(html)
+    let selectedDate = new Date 
+    const metadata = await exiftool.read(tempPath)
+    const dateTimeOriginal = (metadata.DateTimeOriginal as ExifDateTime)
+    // Use createDate for QuickTime mp4 container
+    // Todo : check createDate format and eventually fix it (UTC to GMT)
+    const createDate = (metadata.CreateDate as ExifDateTime)
 
-    const lastMatch = match?.pop()
+    let year = 1970
+    let month = 1
+    if(dateTimeOriginal){
+      selectedDate=dateTimeOriginal.toDate()
+      year = dateTimeOriginal?.year || 1970
+      month = dateTimeOriginal?.month || 1
+    }else{
+      if(createDate){
+        try {
+          selectedDate=createDate.toDate()
+          year = createDate?.year || 1970
+          month = createDate?.month || 1
+        } catch (error) {
+          console.log(" - createDate time is not a valid ExifDateTime")
+        }
+      } 
+    }
 
-    if (lastMatch) {
-      console.log(` - Metadata in HTML: ${lastMatch}`)
-      const date = parseGoogleDate(lastMatch, browserLocale)
 
-      if(date){
-        selectedDate=date
-        console.log(` - Date ${browserLocale} : ${date}`)
-        year = date.getFullYear()
-        month = date.getMonth() + 1
+    if (year === 1970 && month === 1) {
+      // if metadata is not available, we try to get the date from the html
+      console.log(' - Metadata not found, trying to get date from html')
+      const data = await page.request.get(page.url())
+      const html = await data.text()
+      
+      let regex = /aria-label="(?:Photo|Video) ((?:[–-]) ([^"–-]+))+"/
+      switch (browserLocale) {
+        case 'fr-FR':
+          regex = /aria-label="(?:Animation|Photo|Vidéo) ((?:[–-]) ([^"–-]+))+"/
+          break;
+      }
 
-        if (writeScrapedExif) {
-          try {
-            await exiftool.write(tempPath, { DateTimeOriginal: formatDate(date, browserLocale) })
-            console.log(" - Scraped datetime saved to exif metadata : "+date)
-          }catch(error){
-            await exiftool.write(tempPath + '.xmp', { DateTimeOriginal: formatDate(date, browserLocale) })
-            console.log(" - Can't save to exif, scraped datetime saved to XMP file : "+date)
+      const match = regex.exec(html)
+
+      const lastMatch = match?.pop()
+
+      if (lastMatch) {
+        console.log(` - Metadata in HTML: ${lastMatch}`)
+        const date = parseGoogleDate(lastMatch, browserLocale)
+
+        if(date){
+          selectedDate=date
+          console.log(` - Date ${browserLocale} : ${date}`)
+          year = date.getFullYear()
+          month = date.getMonth() + 1
+
+          if (writeScrapedExif) {
+            try {
+              await exiftool.write(tempPath, { DateTimeOriginal: formatDate(date, browserLocale) })
+              console.log(" - Scraped datetime saved to exif metadata : "+date)
+            }catch(error){
+              await exiftool.write(tempPath + '.xmp', { DateTimeOriginal: formatDate(date, browserLocale) })
+              console.log(" - Can't save to exif, scraped datetime saved to XMP file : "+date)
+            }
           }
+
+        }else{
+          console.log('\x1b[31m',' - Could not parse scrapped date, maybe check langage ?', '\x1b[0m')
         }
 
       }else{
-        console.log('\x1b[31m',' - Could not parse scrapped date, maybe check langage ?', '\x1b[0m')
+        console.log('\x1b[31m',' - Could not match date, was locale correctly set ?', '\x1b[0m')
       }
-
-    }else{
-      console.log('\x1b[31m',' - Could not match date, was locale correctly set ?', '\x1b[0m')
     }
-  }
 
-  const newSuggestedFilename = formatDate(selectedDate,'fs')+'_'+suggestedFilename
 
-  const destDir = flatDirectoryStructure
-    ? path.join(photoDirectory, newSuggestedFilename)
-    : path.join(photoDirectory, `${year}`, `${month}`, newSuggestedFilename)
+    const newSuggestedFilename = formatDate(selectedDate,'fs')+'_'+suggestedFilename
 
-  try {
-    await moveFile(tempPath, destDir, { overwrite })
+    const destDir = flatDirectoryStructure
+      ? path.join(photoDirectory, newSuggestedFilename)
+      : path.join(photoDirectory, `${year}`, `${month}`, newSuggestedFilename)
+
     try {
-      await moveFile(tempPath + '.xmp', destDir + '.xmp', { overwrite })
-    }catch{}
-    console.log('\x1b[32m', ' - Download Complete: '+ destDir, '\x1b[0m')
-  } catch (error) {
-    console.log('\x1b[31m',` - Could not move file to ${destDir}: ${error}`, '\x1b[0m')
+      await moveFile(tempPath, destDir, { overwrite })
+      try {
+        await moveFile(tempPath + '.xmp', destDir + '.xmp', { overwrite })
+      }catch{}
+      console.log('\x1b[32m', ' - Download Complete: '+ destDir, '\x1b[0m')
+    } catch (error) {
+      console.log('\x1b[31m',` - Could not move file to ${destDir}: ${error}`, '\x1b[0m')
+    }
+  } catch( error) {
+    console.log('\x1b[31m',' - Could not download, timeout error', '\x1b[0m')
   }
+  
 }
 
 
